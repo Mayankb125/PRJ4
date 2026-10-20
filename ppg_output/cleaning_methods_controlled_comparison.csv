@@ -1,0 +1,7 @@
+Metric,Method 1: Uncleaned,Method 2: Static 25% (Baseline),Method 3: Local Moving (Candidate v2)
+Cleaning Philosophy,No relative jump deletion,Compare to 3-min static median,Compare to 9-beat moving median
+Valid Beats Kept,"8,663","5,179","6,144"
+Rejected Beats Count,0 (0.0%),"3,484 (40.2%)","2,519 (29.1%)"
+Mean Window IBI,687.2 ms,708.3 ms,705.9 ms
+Mean Window PRV (Std IBI),190.4 ms,87.7 ms,145.9 ms
+Mean Peak Amplitude,92.57,92.57,92.57

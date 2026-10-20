@@ -1,0 +1,8 @@
+Metric,Config A (0.30s),Config B (0.35s),Difference
+Minimum Peak Distance,0.30 seconds,0.35 seconds,+0.05 seconds
+Max Detectable Heart Rate,200.0 bpm,171.4 bpm,Safe for seated tasks
+Candidate Peaks Found,"9,891","8,932",-959 peaks
+Overall Median IBI,609.4 ms,687.5 ms,+78.1 ms
+Implied Median Heart Rate,98.5 bpm,87.3 bpm,-11.2 bpm
+Valid Intervals Kept,"4,717","5,179",+462 beats
+Rejected Intervals (25% rule),"4,877 (50.8%)","3,484 (40.2%)","-1,393 (-10.6%)"

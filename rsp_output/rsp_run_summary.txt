@@ -1,0 +1,13 @@
+WESAD RESPIRATION PIPELINE SUMMARY (REFINED)
+Input: D:\PRJ\WESAD\WESAD\S2\S2.pkl
+Subject: S2
+Raw samples: 4,255,300 at 700 Hz (101.32 mins)
+Target sampling rate: 100 Hz (downsampled by factor 7)
+Complete 180s non-overlapping windows: 33
+Total validated breaths detected: 1,281
+Bandpass: 0.05 - 0.35 Hz
+Min candidate breath distance: 2.85 s (strictly bounded by 0.35 Hz cutoff)
+Baseline reference window: Window 2
+Paper features: rsp_mean_amplitude, rsp_std_amplitude, rsp_spectral_entropy, rsp_mean_peak_valley_magnitude, rsp_std_peak_valley_magnitude
+Baseline-corrected features saved with suffix _bc
+Plot 1 uses polyphase anti-aliased resampling for raw display.

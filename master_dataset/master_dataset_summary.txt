@@ -1,0 +1,47 @@
+WESAD MASTER MULTIMODAL DATASET SUMMARY
+========================================
+Generated: 2026-10-20 15:53:43
+Total Subjects: 15
+Total Instances (180s windows): 476
+Training-Usable Instances (purity >= 90%): 194
+Features: 10 Raw Paper Features + 10 Baseline-Normalized Features + Metadata
+
+Per-Subject Breakdown:
+subject  total_windows  training_usable_windows  has_baseline_ref  elapsed_seconds
+    S10             30                       13              True              3.1
+    S11             29                       14              True              3.2
+    S13             30                       12              True              3.1
+    S14             30                       12              True              3.0
+    S15             29                       14              True              3.0
+    S16             31                       14              True              3.0
+    S17             32                       12              True              3.1
+     S2             33                       13              True              2.9
+     S3             36                       13              True              3.4
+     S4             35                       13              True              3.4
+     S5             34                       13              True              3.3
+     S6             39                       13              True              3.6
+     S7             29                       12              True              2.8
+     S8             30                       13              True              2.8
+     S9             29                       13              True              2.4
+
+Class Distribution:
+                       Excluded_or_Mixed  Training_Usable  Total
+wesad_condition_label                                           
+Amusement                             10               20     30
+Baseline                               6               89     95
+Condition_5                            2                0      2
+Meditation                            23               42     65
+Stress                                13               43     56
+Transient                            228                0    228
+
+10 Paper Features NaN Audit:
+paper_mean_ibi_ms                     0
+paper_mean_pulse_amplitude            0
+paper_phasic_response_rate_per_sec    0
+paper_tonic_std_uS                    0
+paper_tonic_slope_uS_per_s            0
+rsp_mean_amplitude                    0
+rsp_std_amplitude                     0
+rsp_spectral_entropy                  0
+rsp_mean_peak_valley_magnitude        0
+rsp_std_peak_valley_magnitude         0
