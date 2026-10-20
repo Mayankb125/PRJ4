@@ -1,0 +1,11 @@
+feature,importance
+norm_paper_phasic_response_rate_per_sec,0.26055375679658055
+norm_rsp_mean_amplitude,0.2033532427163948
+norm_paper_mean_ibi_ms,0.12983749854928006
+norm_rsp_mean_peak_valley_magnitude,0.110387672065727
+norm_rsp_std_amplitude,0.09294345369413307
+norm_paper_tonic_std_uS,0.07822630448141536
+norm_rsp_std_peak_valley_magnitude,0.061596660526883805
+norm_paper_mean_pulse_amplitude,0.026880710199866795
+norm_paper_tonic_slope_uS_per_s,0.021720990466197947
+norm_rsp_spectral_entropy,0.014499710503520651

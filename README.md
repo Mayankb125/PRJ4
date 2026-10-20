@@ -81,3 +81,22 @@ Outputs the unified master dataset at `master_dataset/wesad_multimodal_master_18
   - Meditation: 42 windows
   - Amusement: 20 windows
 * **Data Integrity**: **0 missing values (zero NaNs)** across all 10 features for all 476 instances.
+
+## 4. Machine Learning Evaluation (Leave-One-Subject-Out Cross-Validation)
+
+Using a Random Forest classifier evaluated via strict Leave-One-Subject-Out (LOSO) across all 15 subjects (`train_wesad_loso.py`):
+
+| Experiment | Features | Target Setup | Out-of-Fold Accuracy | Balanced Accuracy | Macro-F1 | Notes |
+| :--- | :--- | :--- | :---: | :---: | :---: | :--- |
+| **Binary (Normalized)** | 10 Normalized | **Baseline vs. Stress** | **90.91%** | **90.28%** | **0.898** | **+7.6% boost from baseline subtraction** |
+| Binary (Raw) | 10 Raw | Baseline vs. Stress | 83.33% | 81.33% | 0.806 | Uncalibrated features |
+| **4-Class (Normalized)** | 10 Normalized | All 4 States | **72.73%** | **63.46%** | **0.655** | **+4.1% boost from baseline subtraction** |
+| 4-Class (Raw) | 10 Raw | All 4 States | 68.60% | 61.27% | 0.627 | Uncalibrated features |
+
+### Key Findings
+1. **Baseline Subtraction**: Subtracting each participant's 3-minute resting baseline features (as proposed by Bian et al. 2019) raises cross-subject binary accuracy by **+7.6%** (83.3% $\rightarrow$ 90.9%).
+2. **Top Discriminative Features**:
+   - `norm_paper_phasic_response_rate_per_sec` (GSR Phasic Rate): 26.1% importance
+   - `norm_rsp_mean_amplitude` (Respiration Depth): 20.3% importance
+   - `norm_paper_mean_ibi_ms` (PPG Mean IBI): 13.0% importance
+

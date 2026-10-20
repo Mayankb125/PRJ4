@@ -1,0 +1,11 @@
+feature,importance
+rsp_spectral_entropy,0.16838648199128994
+paper_phasic_response_rate_per_sec,0.14562811456360183
+paper_mean_ibi_ms,0.14461138607161528
+paper_mean_pulse_amplitude,0.10791554084654476
+rsp_mean_peak_valley_magnitude,0.10047608038197292
+rsp_mean_amplitude,0.0818020674688867
+paper_tonic_std_uS,0.07231178205223404
+paper_tonic_slope_uS_per_s,0.0708548895480587
+rsp_std_peak_valley_magnitude,0.056436863790873995
+rsp_std_amplitude,0.05157679328492199

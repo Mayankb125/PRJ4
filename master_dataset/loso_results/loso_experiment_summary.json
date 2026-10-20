@@ -1,0 +1,122 @@
+[
+  {
+    "experiment": "four_class_raw",
+    "features": [
+      "paper_mean_ibi_ms",
+      "paper_mean_pulse_amplitude",
+      "paper_phasic_response_rate_per_sec",
+      "paper_tonic_std_uS",
+      "paper_tonic_slope_uS_per_s",
+      "rsp_mean_amplitude",
+      "rsp_std_amplitude",
+      "rsp_spectral_entropy",
+      "rsp_mean_peak_valley_magnitude",
+      "rsp_std_peak_valley_magnitude"
+    ],
+    "classes": [
+      "Baseline",
+      "Stress",
+      "Amusement",
+      "Meditation"
+    ],
+    "subjects": 15,
+    "windows": 194,
+    "loso_accuracy": 0.6855670103092784,
+    "loso_balanced_accuracy": 0.6282121393109112,
+    "loso_macro_f1": 0.6292579029630276,
+    "loso_weighted_f1": 0.6870784483306485,
+    "mean_subject_accuracy": 0.6815018315018314,
+    "std_subject_accuracy": 0.18723217960236438,
+    "mean_subject_macro_f1": 0.5699283015459485,
+    "std_subject_macro_f1": 0.1884266604792852
+  },
+  {
+    "experiment": "four_class_normalized",
+    "features": [
+      "norm_paper_mean_ibi_ms",
+      "norm_paper_mean_pulse_amplitude",
+      "norm_paper_phasic_response_rate_per_sec",
+      "norm_paper_tonic_std_uS",
+      "norm_paper_tonic_slope_uS_per_s",
+      "norm_rsp_mean_amplitude",
+      "norm_rsp_std_amplitude",
+      "norm_rsp_spectral_entropy",
+      "norm_rsp_mean_peak_valley_magnitude",
+      "norm_rsp_std_peak_valley_magnitude"
+    ],
+    "classes": [
+      "Baseline",
+      "Stress",
+      "Amusement",
+      "Meditation"
+    ],
+    "subjects": 15,
+    "windows": 194,
+    "loso_accuracy": 0.7268041237113402,
+    "loso_balanced_accuracy": 0.6470029676359701,
+    "loso_macro_f1": 0.6418150790278042,
+    "loso_weighted_f1": 0.7296004112294816,
+    "mean_subject_accuracy": 0.7263125763125764,
+    "std_subject_accuracy": 0.13232787080338038,
+    "mean_subject_macro_f1": 0.6092538942538942,
+    "std_subject_macro_f1": 0.18096411157033013
+  },
+  {
+    "experiment": "baseline_vs_stress_raw",
+    "features": [
+      "paper_mean_ibi_ms",
+      "paper_mean_pulse_amplitude",
+      "paper_phasic_response_rate_per_sec",
+      "paper_tonic_std_uS",
+      "paper_tonic_slope_uS_per_s",
+      "rsp_mean_amplitude",
+      "rsp_std_amplitude",
+      "rsp_spectral_entropy",
+      "rsp_mean_peak_valley_magnitude",
+      "rsp_std_peak_valley_magnitude"
+    ],
+    "classes": [
+      "Baseline",
+      "Stress"
+    ],
+    "subjects": 15,
+    "windows": 132,
+    "loso_accuracy": 0.8333333333333334,
+    "loso_balanced_accuracy": 0.8163051998954796,
+    "loso_macro_f1": 0.8125,
+    "loso_weighted_f1": 0.834280303030303,
+    "mean_subject_accuracy": 0.8287037037037038,
+    "std_subject_accuracy": 0.21061362296286204,
+    "mean_subject_macro_f1": 0.7909457209457211,
+    "std_subject_macro_f1": 0.246635023632802
+  },
+  {
+    "experiment": "baseline_vs_stress_normalized",
+    "features": [
+      "norm_paper_mean_ibi_ms",
+      "norm_paper_mean_pulse_amplitude",
+      "norm_paper_phasic_response_rate_per_sec",
+      "norm_paper_tonic_std_uS",
+      "norm_paper_tonic_slope_uS_per_s",
+      "norm_rsp_mean_amplitude",
+      "norm_rsp_std_amplitude",
+      "norm_rsp_spectral_entropy",
+      "norm_rsp_mean_peak_valley_magnitude",
+      "norm_rsp_std_peak_valley_magnitude"
+    ],
+    "classes": [
+      "Baseline",
+      "Stress"
+    ],
+    "subjects": 15,
+    "windows": 132,
+    "loso_accuracy": 0.9090909090909091,
+    "loso_balanced_accuracy": 0.9025346224196499,
+    "loso_macro_f1": 0.8977272727272727,
+    "loso_weighted_f1": 0.9096074380165289,
+    "mean_subject_accuracy": 0.9101851851851852,
+    "std_subject_accuracy": 0.10484128986778303,
+    "mean_subject_macro_f1": 0.8961677211677213,
+    "std_subject_macro_f1": 0.11822157962132891
+  }
+]
