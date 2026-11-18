@@ -57,3 +57,8 @@ Desktop.ini
 ._*
 .Spotlight-V100
 .Trashes
+
+# Frontend Node.js dependencies & builds
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
