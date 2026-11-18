@@ -8,6 +8,7 @@ Read-only. Nothing here changes Unity or the ML. Sources:
 Unity folder: Users/<you>/AppData/LocalLow/DefaultCompany/MazeStudy/MazeStudy/<participant>_<stamp>/
 """
 from pathlib import Path
+import os
 import re
 import sys
 
@@ -27,8 +28,8 @@ from live_rsp_ml_manager import LiveRSPMLManager, get_unity_link_status  # same 
 st.set_page_config(page_title="VR Adaptive Dashboard", page_icon="🎮", layout="wide")
 
 DEFAULT_UNITY_ROOT = Path.home() / "AppData" / "LocalLow" / "DefaultCompany" / "MazeStudy" / "MazeStudy"
-# where tools/quest_usb/quest_usb_bridge.ps1 copies the standalone Quest's logs (adb pull)
-QUEST_PULL_ROOT = Path(r"D:\Vr_Project\MazeStudy\tools\quest_usb\pulled\MazeStudy")
+# where tools/quest_usb/quest_usb_bridge.ps1 copies the standalone Quest's logs (adb pull); override via QUEST_PULL_ROOT env var
+QUEST_PULL_ROOT = Path(os.environ.get("QUEST_PULL_ROOT", r"D:\Vr_Project\MazeStudy\tools\quest_usb\pulled\MazeStudy"))
 
 CHANGE_STYLE = {
     "level_up": ("▲ Level up", "#16a34a", "triangle-up"),
@@ -279,14 +280,13 @@ with st.sidebar:
     unity_root = Path(st.text_input("Unity log folder", str(default_root), key="root_" + unity_src[:5]))
     sessions = list_unity_sessions(unity_root)
     follow = st.checkbox("Follow newest Unity session", value=True)
-    chosen = None
-    if sessions:
-        idx = 0 if follow else st.selectbox("Unity session", range(len(sessions)), format_func=lambda i: sessions[i].name)
-        chosen = sessions[idx]
-        if follow:
-            st.caption(f"Session: `{chosen.name}`")
-    else:
-        st.warning("No Unity session folders found here.")
+    manual_chosen = None
+    if not follow:
+        if sessions:
+            idx = st.selectbox("Unity session", range(len(sessions)), format_func=lambda i: sessions[i].name)
+            manual_chosen = sessions[idx]
+        else:
+            st.warning("No Unity session folders found here.")
 
     pred_files = list_prediction_files()
     pred_choice = st.selectbox("ML predictions file", ["(current live session / newest)"] + [p.name for p in pred_files])
@@ -301,17 +301,28 @@ def live_view():
     snap = manager.get_snapshot()
     link = get_unity_link_status()
 
+    # Re-scan Unity sessions & prediction files inside the 2s fragment so newly started sessions sync automatically!
+    live_sessions = list_unity_sessions(unity_root)
+    chosen = (live_sessions[0] if live_sessions else None) if follow else manual_chosen
+    fresh_pred_files = list_prediction_files()
+
     pred_path = None
     if pred_choice != "(current live session / newest)":
         pred_path = SESSIONS_DIR / pred_choice
+    elif snap["is_running"] or snap["is_connecting"]:
+        # While a live session is running, never leak an old previous session's CSV before Window #1 finishes
+        live_path = Path(snap["predictions_file"]) if snap.get("predictions_file") else None
+        if live_path is not None and live_path.is_file() and has_rows(live_path):
+            pred_path = live_path
     else:
         live_path = Path(snap["predictions_file"]) if snap.get("predictions_file") else None
         if live_path is not None and live_path.is_file() and has_rows(live_path):
             pred_path = live_path
-        elif pred_files:
-            pred_path = pred_files[0]
+        elif fresh_pred_files:
+            pred_path = fresh_pred_files[0]
+
     windows = load_windows(pred_path)
-    # window length actually used (from the file), else the live manager's setting
+    # window length actually used (from the latest evaluated window), else active target setting
     wl = int(round(float(windows.iloc[-1]["window_end_seconds"]) - float(windows.iloc[-1]["window_start_seconds"]))) if not windows.empty else int(snap["window_duration_s"])
 
     trials_all = load_trials(chosen) if chosen else pd.DataFrame()
@@ -324,14 +335,15 @@ def live_view():
     phase_text, ev_age, phase_kind = unity_phase(events)
 
     # ---------- banner: what is happening right now
+    session_badge = f" · Synced Unity session: `{chosen.name}`" if chosen else ""
     if phase_kind == "baseline":
-        st.warning("🧘 " + phase_text)
+        st.warning("🧘 " + phase_text + session_badge)
     elif phase_kind == "trial":
-        st.info("▶️ " + phase_text)
+        st.info("▶️ " + phase_text + session_badge)
     elif phase_kind == "end":
-        st.success("🏁 " + phase_text)
+        st.success("🏁 " + phase_text + session_badge)
     else:
-        st.info("⏳ " + phase_text)
+        st.info("⏳ " + phase_text + session_badge)
 
     # ---------- 1. status strip
     c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -345,7 +357,10 @@ def live_view():
         c3.metric("Unity activity", "live" if ev_age < 15 else ("idle" if ev_age < 90 else "silent"), f"last event {ev_age:.0f} s ago",
                   delta_color="off", help="Newest line in Unity's events.csv. If the headset app is running, this keeps updating.")
     if snap["is_running"]:
-        c4.metric("ML window", f"{snap['current_window_elapsed']:.0f} / {snap['window_duration_s']:.0f} s",
+        roll_s = snap.get("rolling_window_s", snap["window_duration_s"])
+        step_s = snap.get("prediction_step_s", snap["window_duration_s"])
+        win_lbl = "Baseline window" if not snap.get("has_baseline") else (f"Next ({roll_s:.0f}s roll)" if roll_s > step_s else "ML window")
+        c4.metric(win_lbl, f"{snap['current_window_elapsed']:.0f} / {snap['window_duration_s']:.0f} s",
                   help="A new High/Low answer is sent to Unity each time this fills up")
     else:
         c4.metric("ML window", "-")
@@ -353,7 +368,7 @@ def live_view():
         lw = windows.iloc[-1]
         c5.metric("Latest ML answer", lw["ml_state"], f"{float(lw['confidence']):.0%} conf", delta_color="off")
     else:
-        c5.metric("Latest ML answer", "none yet")
+        c5.metric("Latest ML answer", "waiting..." if snap["is_running"] else "none yet")
     if not trials_all.empty:
         last = trials_all.iloc[-1]
         c6.metric("Maze next", f"L{int(last['next_level'])} · G{int(last['next_guidance'])}", help="Level / guidance chosen for the next trial")
@@ -367,18 +382,31 @@ def live_view():
         data = snap.get("data") or []
         if snap["is_running"] and len(data) > 5:
             d = pd.DataFrame(data)
-            d["t"] = d["elapsed"] - d["elapsed"].iloc[-1]
+            last_elapsed = float(d["elapsed"].iloc[-1])
+            d["t"] = d["elapsed"] - last_elapsed
             d = d[d["t"] >= -90]
             f2 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08, row_heights=[0.6, 0.4],
                                subplot_titles=("Respiration belt force (N)", "Breathing rate (bpm) vs. personal baseline"))
             f2.add_trace(go.Scatter(x=d["t"], y=d["force"], mode="lines", line=dict(color="#0ea5e9", width=1.5), showlegend=False), row=1, col=1)
             b = d.dropna(subset=["bpm"])
-            f2.add_trace(go.Scatter(x=b["t"], y=b["bpm"], mode="lines+markers", line=dict(color="#7c3aed"), showlegend=False), row=2, col=1)
+            if not b.empty:
+                f2.add_trace(go.Scatter(x=b["t"], y=b["bpm"], mode="lines+markers", name="Belt BPM",
+                                        line=dict(color="#7c3aed"), showlegend=False), row=2, col=1)
+            # Overlay our accurate pipeline calculated_bpm from recent windows (stays visible even when belt BPM is NaN)
+            if not windows.empty and "window_end_seconds" in windows.columns and "calculated_bpm" in windows.columns:
+                w_recent = windows.copy()
+                w_recent["t_rel"] = w_recent["window_end_seconds"].astype(float) - last_elapsed
+                w_recent = w_recent[(w_recent["t_rel"] >= -90) & (w_recent["t_rel"] <= 2)]
+                if not w_recent.empty:
+                    f2.add_trace(go.Scatter(x=w_recent["t_rel"], y=w_recent["calculated_bpm"], mode="markers+text",
+                                            text=[f"{v:.1f}" for v in w_recent["calculated_bpm"]], textposition="top center",
+                                            marker=dict(color="#0f766e", size=10, symbol="diamond"),
+                                            name="Pipeline BPM", showlegend=False), row=2, col=1)
             if snap.get("baseline_bpm") is not None:
                 f2.add_hline(y=snap["baseline_bpm"], line_dash="dot", line_color="#16a34a", row=2, col=1,
                              annotation_text=f"baseline {snap['baseline_bpm']:.1f}", annotation_position="top left")
-                f2.add_hline(y=snap["baseline_bpm"] + 2.5, line_dash="dash", line_color="#dc2626", row=2, col=1,
-                             annotation_text="+2.5 bpm: rate rule starts to count", annotation_position="bottom left")
+                f2.add_hline(y=snap["baseline_bpm"] + 5.0, line_dash="dash", line_color="#dc2626", row=2, col=1,
+                             annotation_text="+5.0 bpm: rate stress threshold (≥50%)", annotation_position="bottom left")
             f2.update_xaxes(title_text="seconds ago", row=2, col=1)
             f2.update_layout(height=360, margin=dict(l=10, r=10, t=40, b=10))
             st.plotly_chart(f2, use_container_width=True)

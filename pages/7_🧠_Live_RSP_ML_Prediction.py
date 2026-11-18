@@ -77,7 +77,7 @@ with st.expander("🎯 Step 1: Personal Baseline Calibration (Required for Norma
                 st.write("")
                 if st.button("📥 Lock CSV as Baseline", use_container_width=True, disabled=status["is_running"]):
                     try:
-                        manager.load_baseline_csv(chosen_csv, window_seconds=180.0)
+                        manager.load_baseline_csv(chosen_csv, window_seconds=120.0)
                         st.rerun()
                     except Exception as exc:
                         st.error(f"Failed to load baseline: {exc}")
@@ -85,7 +85,7 @@ with st.expander("🎯 Step 1: Personal Baseline Calibration (Required for Norma
 # ----------------------------------------------------
 # 2. LIVE ACQUISITION & INFERENCE CONTROLS
 # ----------------------------------------------------
-c_freq, c_win, c_btn, c_stat = st.columns([1.1, 1.2, 1.1, 1.5])
+c_freq, c_win, c_btn, c_stat = st.columns([1.0, 1.5, 1.0, 1.4])
 
 with c_freq:
     freq_map = {
@@ -102,20 +102,22 @@ with c_freq:
     selected_hz = freq_map[freq_label]
 
 with c_win:
+    # (baseline_duration_s, rolling_window_s, prediction_step_s)
     win_map = {
-        "120s (2 Min — matches the VR baseline)": 120.0,
-        "180s (3 Min — Official WESAD)": 180.0,
-        "60s (1 Min — VR Trial Mode)": 60.0,
-        "30s (Quick Live Test)": 30.0,
+        "120s Baseline → 60s Rolling / 30s Updates (VR Recommended)": (120.0, 60.0, 30.0),
+        "120s Baseline → 30s Non-Overlapping Updates": (120.0, 30.0, 30.0),
+        "120s Fixed (2 Min Baseline & Predictions)": (120.0, 120.0, 120.0),
+        "180s Fixed (3 Min — Official WESAD)": (180.0, 180.0, 180.0),
+        "30s Fixed (Quick Live Test)": (30.0, 30.0, 30.0),
     }
     win_label = st.selectbox(
-        "Prediction Window Length",
+        "Baseline & Prediction Timing",
         options=list(win_map.keys()),
         index=0,
         disabled=status["is_running"] or status["is_connecting"],
-        help="Use 180s for strict WESAD compliance, or 30s/60s for faster live VR stress testing.",
+        help="Default: 2-min (120s) resting baseline, then smooth 60s rolling predictions pushed to VR every 30s.",
     )
-    selected_win_s = win_map[win_label]
+    sel_base_s, sel_roll_s, sel_step_s = win_map[win_label]
 
 with c_btn:
     st.write("")
@@ -124,7 +126,9 @@ with c_btn:
         if st.button("🟢 Start Live ML", use_container_width=True, type="primary"):
             if manager.start(
                 sample_rate_hz=selected_hz,
-                window_duration_s=selected_win_s,
+                window_duration_s=sel_base_s,
+                rolling_window_s=sel_roll_s,
+                prediction_step_s=sel_step_s,
                 keep_baseline=status["has_baseline"],
             ):
                 st.rerun()
@@ -163,6 +167,9 @@ st.divider()
 st.markdown("### 🤖 Live Random Forest Prediction Output (VR-Ready)")
 
 win_dur = status["window_duration_s"]
+roll_dur = status.get("rolling_window_s", win_dur)
+step_dur = status.get("prediction_step_s", win_dur)
+base_dur = status.get("baseline_duration_s", 120.0)
 completed_wins = status["completed_windows"]
 cur_win_elapsed = status["current_window_elapsed"]
 elapsed_sec = status["elapsed_seconds"]
@@ -171,7 +178,12 @@ elapsed_fmt = str(timedelta(seconds=int(elapsed_sec)))[2:] if elapsed_sec > 0 el
 if status["is_running"]:
     next_win = completed_wins + 1
     p_val = min(1.0, cur_win_elapsed / win_dur) if win_dur > 0 else 0.0
-    role_txt = "Baseline Calibration Window #1" if (not status["has_baseline"] and next_win == 1) else f"Inference Window #{next_win}"
+    if not status["has_baseline"]:
+        role_txt = f"Baseline Calibration ({base_dur:.0f}s)"
+    elif roll_dur > step_dur:
+        role_txt = f"Next Rolling {roll_dur:.0f}s Prediction (#{next_win})"
+    else:
+        role_txt = f"Inference Window #{next_win}"
     st.progress(
         p_val,
         text=f"⏳ {role_txt}: {cur_win_elapsed:.0f}s / {win_dur:.0f}s | Total Elapsed: {elapsed_fmt} | Samples: {status['sample_count']:,}",
@@ -179,7 +191,10 @@ if status["is_running"]:
 elif completed_wins > 0:
     st.progress(1.0, text=f"✅ Session Complete — {completed_wins} Window(s) Evaluated | Total Duration: {elapsed_fmt}")
 else:
-    st.progress(0.0, text=f"Ready — Predictions trigger automatically at the end of every {win_dur:.0f}s window.")
+    st.progress(
+        0.0,
+        text=f"Ready — Baseline: {sel_base_s:.0f}s, then {sel_roll_s:.0f}s rolling predictions every {sel_step_s:.0f}s.",
+    )
 
 latest_pred = status["latest_prediction"]
 

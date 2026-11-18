@@ -273,7 +273,9 @@ def send_to_unity(pred_res: dict) -> None:
 #   baseline_end   : informational only
 #   session_end    : stop recording and close the files
 AUTO_SAMPLE_RATE_HZ = int(os.environ.get("AUTO_SAMPLE_RATE_HZ", "20"))
-AUTO_WINDOW_S = float(os.environ.get("AUTO_WINDOW_S", "120"))   # = the headset's 2-minute baseline (SessionController.baselineSeconds)
+AUTO_WINDOW_S = float(os.environ.get("AUTO_WINDOW_S", "120"))                 # = headset 2-min baseline (SessionController.baselineSeconds)
+AUTO_ROLLING_WINDOW_S = float(os.environ.get("AUTO_ROLLING_WINDOW_S", "60"))   # 60s rolling analysis lookback after baseline
+AUTO_PRED_STEP_S = float(os.environ.get("AUTO_PRED_STEP_S", "30"))             # emit a fresh ML prediction to Unity every 30s
 REBASELINE_EACH_BLOCK = os.environ.get("REBASELINE_EACH_BLOCK", "1") != "0"
 
 
@@ -291,8 +293,13 @@ def _handle_unity_command(msg: dict, reply) -> None:
             mgr.request_window_restart(clear_baseline=REBASELINE_EACH_BLOCK)
             action = "window_realigned"
         else:
-            action = "recording_starting" if mgr.start(sample_rate_hz=AUTO_SAMPLE_RATE_HZ,
-                                                        window_duration_s=AUTO_WINDOW_S, keep_baseline=False) else "start_refused"
+            action = "recording_starting" if mgr.start(
+                sample_rate_hz=AUTO_SAMPLE_RATE_HZ,
+                window_duration_s=AUTO_WINDOW_S,
+                rolling_window_s=AUTO_ROLLING_WINDOW_S,
+                prediction_step_s=AUTO_PRED_STEP_S,
+                keep_baseline=False,
+            ) else "start_refused"
         note = ""
         if abs(planned - AUTO_WINDOW_S) > 1.0:
             note = f"Unity baseline is {planned:.0f} s but the ML window is {AUTO_WINDOW_S:.0f} s - they should match"
@@ -369,7 +376,10 @@ class LiveRSPMLManager:
         self.battery_level = None
         self.sample_rate_hz = 20
         self.sample_period_ms = 50
-        self.window_duration_s = 120.0
+        self.baseline_duration_s = AUTO_WINDOW_S
+        self.rolling_window_s = AUTO_ROLLING_WINDOW_S
+        self.prediction_step_s = AUTO_PRED_STEP_S
+        self.window_duration_s = AUTO_WINDOW_S
 
         self.raw_file: Path | None = None
         self.predictions_file: Path | None = None
@@ -405,15 +415,35 @@ class LiveRSPMLManager:
     def clear_baseline(self) -> None:
         self.predictor.clear_baseline()
 
-    def start(self, sample_rate_hz: int = 20, window_duration_s: float = 180.0, keep_baseline: bool = True) -> bool:
-        """Start live BLE acquisition + feature extraction + ML inference thread."""
+    def start(
+        self,
+        sample_rate_hz: int = 20,
+        window_duration_s: float = 120.0,
+        keep_baseline: bool = True,
+        rolling_window_s: float | None = None,
+        prediction_step_s: float | None = None,
+    ) -> bool:
+        """Start live BLE acquisition + feature extraction + ML inference thread.
+
+        If rolling_window_s and prediction_step_s are provided (e.g. 60s rolling / 30s step),
+        Window #1 collects a full `window_duration_s` baseline (e.g. 120s), then subsequent
+        predictions run every `prediction_step_s` over the most recent `rolling_window_s` of
+        post-baseline active data.
+        """
         with self._lock:
             if self.is_running or self.is_connecting:
                 return False
 
             self.sample_rate_hz = sample_rate_hz
             self.sample_period_ms = max(10, 1000 // sample_rate_hz)
-            self.window_duration_s = float(window_duration_s)
+            self.baseline_duration_s = float(window_duration_s)
+            if rolling_window_s is None and prediction_step_s is None:
+                self.rolling_window_s = self.baseline_duration_s
+                self.prediction_step_s = self.baseline_duration_s
+            else:
+                self.rolling_window_s = float(rolling_window_s if rolling_window_s is not None else self.baseline_duration_s)
+                self.prediction_step_s = float(prediction_step_s if prediction_step_s is not None else self.rolling_window_s)
+            self.window_duration_s = self.baseline_duration_s
             self.is_connecting = True
             self.error_message = None
             self.battery_level = None
@@ -464,7 +494,10 @@ class LiveRSPMLManager:
         pred_csv_file = None
 
         session_tag = datetime.now().strftime("%Y%m%d_%H%M%S")
-        win_tag = f"{int(self.window_duration_s)}s"
+        if self.rolling_window_s == self.baseline_duration_s and self.prediction_step_s == self.baseline_duration_s:
+            win_tag = f"{int(self.baseline_duration_s)}s"
+        else:
+            win_tag = f"{int(self.baseline_duration_s)}b_{int(self.rolling_window_s)}w_{int(self.prediction_step_s)}s"
         self.raw_file = SESSIONS_DIR / f"raw_{session_tag}_{self.sample_rate_hz}Hz.csv"
         self.predictions_file = SESSIONS_DIR / f"predictions_{session_tag}_{self.sample_rate_hz}Hz_{win_tag}.csv"
 
@@ -600,25 +633,39 @@ class LiveRSPMLManager:
                     win_forces.append(force_val)
                     self.current_window_elapsed = elapsed - self.window_start_elapsed
 
-                    # Trigger Feature Extraction + ML Prediction on completed window
-                    if self.current_window_elapsed >= self.window_duration_s:
+                    # Determine active timer target: full baseline_duration_s (e.g. 120s) before
+                    # baseline is locked, then prediction_step_s (e.g. 30s) during live play.
+                    collecting_baseline = not self.predictor.has_baseline
+                    target_step_s = self.baseline_duration_s if collecting_baseline else self.prediction_step_s
+                    self.window_duration_s = target_step_s
+
+                    # In rolling post-baseline mode, keep only the most recent rolling_window_s (e.g. 60s)
+                    if (not collecting_baseline) and (self.rolling_window_s > self.prediction_step_s):
+                        cutoff_t = elapsed - self.rolling_window_s
+                        while len(win_times) > 1 and win_times[0] < cutoff_t:
+                            win_times.pop(0)
+                            win_forces.pop(0)
+
+                    # Trigger Feature Extraction + ML Prediction when baseline or step interval completes
+                    if self.current_window_elapsed >= target_step_s:
                         win_idx = self.completed_windows + 1
-                        win_start_s = round(self.window_start_elapsed, 2)
+                        win_start_s = round(win_times[0], 2) if win_times else round(self.window_start_elapsed, 2)
                         win_end_s = round(elapsed, 2)
+                        min_req_s = max(15.0, min(target_step_s, self.rolling_window_s) - 5.0)
 
                         feat_res = extract_live_respiration_features(
                             win_times,
                             win_forces,
                             fs=float(self.sample_rate_hz),
-                            min_window_s=min_valid_s,
+                            min_window_s=min_req_s,
                         )
 
+                        is_baseline_win = False
                         if feat_res["status"] == "OK":
                             feat_res["window_index"] = win_idx
                             feat_res["window_start_seconds"] = win_start_s
                             feat_res["window_end_seconds"] = win_end_s
 
-                            is_baseline_win = False
                             if not self.predictor.has_baseline:
                                 self.predictor.set_baseline(
                                     feat_res,
@@ -694,11 +741,18 @@ class LiveRSPMLManager:
                             ])
                             pred_csv_file.flush()
 
-                        # Start next non-overlapping window cleanly
-                        win_times = []
-                        win_forces = []
+                        # Advance window:
+                        # - Always clear after baseline (never mix resting baseline into active play)
+                        # - Also clear in non-overlapping fixed mode (rolling_window_s <= prediction_step_s)
+                        # - In rolling mode (e.g. 60s window / 30s step), keep buffer & reset only the 30s step timer
+                        if is_baseline_win or (self.rolling_window_s <= self.prediction_step_s):
+                            win_times = []
+                            win_forces = []
                         self.window_start_elapsed = elapsed
                         self.current_window_elapsed = 0.0
+                        self.window_duration_s = (
+                            self.baseline_duration_s if not self.predictor.has_baseline else self.prediction_step_s
+                        )
 
                 time.sleep(sleep_interval)
 
@@ -734,6 +788,10 @@ class LiveRSPMLManager:
             time.time() - self.start_time if (self.start_time and self.is_running) else self.final_elapsed_seconds
         )
 
+        active_target_s = (
+            self.baseline_duration_s if not self.predictor.has_baseline else self.prediction_step_s
+        )
+
         return {
             "is_running": self.is_running,
             "is_connecting": self.is_connecting,
@@ -742,7 +800,10 @@ class LiveRSPMLManager:
             "device_name": self.device_name,
             "battery_level": self.battery_level,
             "sample_rate_hz": self.sample_rate_hz,
-            "window_duration_s": self.window_duration_s,
+            "window_duration_s": active_target_s,
+            "baseline_duration_s": self.baseline_duration_s,
+            "rolling_window_s": self.rolling_window_s,
+            "prediction_step_s": self.prediction_step_s,
             "sample_count": self.sample_count,
             "latest_force": self.latest_force,
             "latest_bpm": self.latest_bpm,
