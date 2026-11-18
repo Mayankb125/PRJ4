@@ -104,7 +104,8 @@ with c_freq:
 with c_win:
     # (baseline_duration_s, rolling_window_s, prediction_step_s)
     win_map = {
-        "120s Baseline → 60s Rolling / 30s Updates (VR Recommended)": (120.0, 60.0, 30.0),
+        "60s Baseline → 60s Rolling / 30s Updates (VR Recommended, matches headset)": (60.0, 60.0, 30.0),
+        "120s Baseline → 60s Rolling / 30s Updates": (120.0, 60.0, 30.0),
         "120s Baseline → 30s Non-Overlapping Updates": (120.0, 30.0, 30.0),
         "120s Fixed (2 Min Baseline & Predictions)": (120.0, 120.0, 120.0),
         "180s Fixed (3 Min — Official WESAD)": (180.0, 180.0, 180.0),
@@ -115,7 +116,7 @@ with c_win:
         options=list(win_map.keys()),
         index=0,
         disabled=status["is_running"] or status["is_connecting"],
-        help="Default: 2-min (120s) resting baseline, then smooth 60s rolling predictions pushed to VR every 30s.",
+        help="Default: 1-min (60s) resting baseline (same as the headset), then smooth 60s rolling predictions pushed to VR every 30s. When the headset starts the baseline, window #1 ends exactly when the headset baseline ends.",
     )
     sel_base_s, sel_roll_s, sel_step_s = win_map[win_label]
 

@@ -273,7 +273,7 @@ def send_to_unity(pred_res: dict) -> None:
 #   baseline_end   : informational only
 #   session_end    : stop recording and close the files
 AUTO_SAMPLE_RATE_HZ = int(os.environ.get("AUTO_SAMPLE_RATE_HZ", "20"))
-AUTO_WINDOW_S = float(os.environ.get("AUTO_WINDOW_S", "120"))                 # = headset 2-min baseline (SessionController.baselineSeconds)
+AUTO_WINDOW_S = float(os.environ.get("AUTO_WINDOW_S", "60"))                  # = headset 1-min baseline (SessionController.baselineSeconds)
 AUTO_ROLLING_WINDOW_S = float(os.environ.get("AUTO_ROLLING_WINDOW_S", "60"))   # 60s rolling analysis lookback after baseline
 AUTO_PRED_STEP_S = float(os.environ.get("AUTO_PRED_STEP_S", "30"))             # emit a fresh ML prediction to Unity every 30s
 REBASELINE_EACH_BLOCK = os.environ.get("REBASELINE_EACH_BLOCK", "1") != "0"
@@ -289,8 +289,10 @@ def _handle_unity_command(msg: dict, reply) -> None:
     if kind == "baseline_start":
         planned = float(msg.get("planned_s", AUTO_WINDOW_S) or AUTO_WINDOW_S)
         t_cmd = time.time() - late_s
+        deadline = t_cmd + planned          # when the headset's baseline ends
         if mgr.is_running or mgr.is_connecting:
             mgr.request_window_restart(clear_baseline=REBASELINE_EACH_BLOCK)
+            mgr.baseline_deadline = deadline
             action = "window_realigned"
         else:
             action = "recording_starting" if mgr.start(
@@ -300,6 +302,8 @@ def _handle_unity_command(msg: dict, reply) -> None:
                 prediction_step_s=AUTO_PRED_STEP_S,
                 keep_baseline=False,
             ) else "start_refused"
+            if action == "recording_starting":
+                mgr.baseline_deadline = deadline   # set after start() (start() clears it)
         note = ""
         if abs(planned - AUTO_WINDOW_S) > 1.0:
             note = f"Unity baseline is {planned:.0f} s but the ML window is {AUTO_WINDOW_S:.0f} s - they should match"
@@ -402,6 +406,9 @@ class LiveRSPMLManager:
 
         self._stop_event = threading.Event()
         self._worker_thread: threading.Thread | None = None
+        # wall-clock time (epoch s) at which the HEADSET baseline ends; window #1 is closed then, so the ML baseline
+        # covers the same rest period as the headset's, not the time after the belt finished connecting.
+        self.baseline_deadline: "float | None" = None
         self._window_restart_req: "bool | None" = None   # None = no request; else = also clear the baseline?
 
     def request_window_restart(self, clear_baseline: bool = True) -> None:
@@ -445,6 +452,7 @@ class LiveRSPMLManager:
                 self.prediction_step_s = float(prediction_step_s if prediction_step_s is not None else self.rolling_window_s)
             self.window_duration_s = self.baseline_duration_s
             self.is_connecting = True
+            self.baseline_deadline = None
             self.error_message = None
             self.battery_level = None
             self.sample_count = 0
@@ -477,6 +485,7 @@ class LiveRSPMLManager:
         if self.start_time and self.is_running:
             self.final_elapsed_seconds = time.time() - self.start_time
         self._stop_event.set()
+        self.baseline_deadline = None
         if self._worker_thread and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=3.0)
         self.is_running = False
@@ -637,6 +646,10 @@ class LiveRSPMLManager:
                     # baseline is locked, then prediction_step_s (e.g. 30s) during live play.
                     collecting_baseline = not self.predictor.has_baseline
                     target_step_s = self.baseline_duration_s if collecting_baseline else self.prediction_step_s
+                    if collecting_baseline and self.baseline_deadline is not None:
+                        # close window #1 exactly when the headset's baseline ends (belt connect time is already used up)
+                        wall_window_start = self.start_time + self.window_start_elapsed
+                        target_step_s = max(20.0, min(self.baseline_duration_s, self.baseline_deadline - wall_window_start))
                     self.window_duration_s = target_step_s
 
                     # In rolling post-baseline mode, keep only the most recent rolling_window_s (e.g. 60s)
@@ -789,7 +802,8 @@ class LiveRSPMLManager:
         )
 
         active_target_s = (
-            self.baseline_duration_s if not self.predictor.has_baseline else self.prediction_step_s
+            self.window_duration_s if self.is_running else
+            (self.baseline_duration_s if not self.predictor.has_baseline else self.prediction_step_s)
         )
 
         return {

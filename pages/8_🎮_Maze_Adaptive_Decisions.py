@@ -51,7 +51,8 @@ NOISY_EVENTS = {"move"}   # hundreds per trial - counted, not listed
 
 # ----------------------------------------------------------------------------- data loading
 def to_ts(s: pd.Series) -> pd.Series:
-    return pd.to_datetime(s, utc=True, errors="coerce", format="ISO8601")
+    # Unity/ML write UTC; everything on this page is DISPLAYED in Indian Standard Time (IST, UTC+05:30)
+    return pd.to_datetime(s, utc=True, errors="coerce", format="ISO8601").dt.tz_convert("Asia/Kolkata")
 
 
 def has_rows(path: Path) -> bool:
@@ -68,8 +69,13 @@ def list_unity_sessions(root: Path) -> list:
     if not root.is_dir():
         return []
     sessions = [p for p in root.iterdir() if p.is_dir() and (p / "trials.csv").is_file()]
-    return sorted(sessions, key=lambda p: max((p / n).stat().st_mtime for n in ("trials.csv", "events.csv") if (p / n).is_file()),
-                  reverse=True)
+    # Newest = most recently STARTED (folder name ends _YYYYMMDD_HHMMSS). File mtimes are useless for the Quest USB pull,
+    # because `adb pull` rewrites every session's files on each cycle; mtime is only a tie-breaker.
+    def _key(p: Path):
+        m = re.search(r"_(\d{8}_\d{6})$", p.name)
+        mt = max((p / n).stat().st_mtime for n in ("trials.csv", "events.csv") if (p / n).is_file())
+        return (m.group(1) if m else "", mt)
+    return sorted(sessions, key=_key, reverse=True)
 
 
 def read_csv_safe(path: Path) -> pd.DataFrame:
@@ -159,12 +165,11 @@ def render_matrix(rules, src, counts, active):
                 f"<b style='color:{color}'>{words}</b><br><span style='font-size:12px'>{name}: {n} trial(s)</span></td>")
     html = ("<table style='width:100%;border-collapse:collapse'>"
             "<tr><th style='width:24%'></th><th>Performance GOOD</th><th>Performance POOR</th></tr>"
-            f"<tr><th>Stress HIGH</th>{cell('HIGH_GOOD')}{cell('HIGH_POOR')}</tr>"
-            f"<tr><th>Stress LOW</th>{cell('LOW_GOOD')}{cell('LOW_POOR')}</tr>"
-            f"<tr><th>ML missing / low confidence</th>{cell('PERF_GOOD')}{cell('PERF_POOR')}</tr></table>")
+            f"<tr><th>Stress HIGH<br><small>(respiration sensor)</small></th>{cell('HIGH_GOOD')}{cell('HIGH_POOR')}</tr>"
+            f"<tr><th>Stress LOW<br><small>(respiration sensor)</small></th>{cell('LOW_GOOD')}{cell('LOW_POOR')}</tr>"
+            f"<tr><th>Respiration reading missing / low confidence<br><small>(performance only)</small></th>{cell('PERF_GOOD')}{cell('PERF_POOR')}</tr></table>")
     st.markdown(html, unsafe_allow_html=True)
-    st.caption(f"Rules {src}. Black border = the cell used by the latest decision. 'Step UP' = take away guidance first, then raise the level; "
-               "'Step DOWN' = add guidance first (up to G3), then lower the level.")
+    st.caption(f"Rules {src}. Black border = the cell used by the latest decision. 'Step UP' / 'Step DOWN' = raise / lower the LEVEL directly when step 33 is active (older sessions: guidance first, then level).")
 
 
 # ----------------------------------------------------------------------------- explanations / matching
@@ -179,7 +184,9 @@ def explain(row: pd.Series) -> str:
     if row["outcome"] and row["outcome"] != "Success":
         perf += " (trial " + row["outcome"].lower() + ")"
     if row["adapt_mode"] == "combined":
-        ml = f"ML says {row['physio_state'].upper()} ({float(row['physio_confidence']):.0%} sure)"
+        ml = f"respiration sensor says stress {row['physio_state'].upper()} ({float(row['physio_confidence']):.0%} sure)"
+    elif row["adapt_mode"] == "hold_no_physio":
+        ml = f"no valid respiration reading ({row['physio_status']}) -> level is held until the sensor answers"
     elif cond == "PERF_ONLY":
         ml = "ML ignored (performance-only condition)"
     else:
@@ -450,6 +457,38 @@ def live_view():
                     f"condition `{lt.get('adapt_condition', '')}`)")
         (st.success if lt["change"] != "none" else st.info)(lt["explanation"])
 
+        # ---- LEVEL CHANGE alert (big banner for the latest trial + a one-time toast per new change)
+        _lvl = lt["change"] in ("level_up", "level_down")
+        if _lvl:
+            _up = lt["change"] == "level_up"
+            _col = "#16a34a" if _up else "#dc2626"
+            st.markdown(
+                f"<div style='border-left:10px solid {_col};background:{_col}1f;padding:14px 18px;border-radius:6px;margin:6px 0'>"
+                f"<span style='font-size:26px;font-weight:700;color:{_col}'>{'▲ LEVEL UP' if _up else '▼ LEVEL DOWN'}: "
+                f"{int(lt['prev_level'])} → {int(lt['next_level'])}</span><br>"
+                f"<span style='font-size:15px'>after trial {int(lt['global_trial'])} · stress <b>{str(lt['physio_state']).upper()}</b> "
+                f"({float(lt['physio_confidence']):.0%}) × performance <b>{lt['perf_class']}</b> · cell <code>{lt['rule_cell']}</code></span></div>",
+                unsafe_allow_html=True)
+        _seen = st.session_state.get("_last_toast_trial")
+        _key = f"{chosen.name}:{int(lt['global_trial'])}"
+        if _seen != _key:
+            if _seen is not None and _lvl:
+                st.toast(f"{'▲ Level UP' if lt['change'] == 'level_up' else '▼ Level DOWN'}: {int(lt['prev_level'])} → {int(lt['next_level'])}",
+                         icon="🎚️")
+            st.session_state["_last_toast_trial"] = _key
+
+        _chg = trials[trials["change"].isin(["level_up", "level_down", "guidance_up", "guidance_down"])]
+        if not _chg.empty:
+            with st.expander(f"Every maze change this session ({len(_chg)})", expanded=True):
+                st.dataframe(pd.DataFrame({
+                    "trial": _chg["global_trial"],
+                    "at (IST)": _chg["end_ts"].dt.strftime("%H:%M:%S"),
+                    "change": _chg["change"].map({"level_up": "▲ level up", "level_down": "▼ level down",
+                                                  "guidance_up": "help added", "guidance_down": "help removed"}),
+                    "level": _chg["prev_level"].astype(int).astype(str) + " → " + _chg["next_level"].astype(int).astype(str),
+                    "stress": _chg["physio_state"], "perf": _chg["perf_class"], "why": _chg["explanation"]
+                }).iloc[::-1], hide_index=True, use_container_width=True)
+
         # the stress x performance matrix that is actually in force, with the cell of the latest decision highlighted
         adaptive_rows = trials[(trials["practice"] == 0)] if "practice" in trials.columns else trials
         rules_now, rules_src = rules_in_use(chosen)
@@ -490,7 +529,7 @@ def live_view():
 
         table = pd.DataFrame({
             "trial": trials["global_trial"],
-            "ended (UTC)": trials["end_ts"].dt.strftime("%H:%M:%S"),
+            "ended (IST)": trials["end_ts"].dt.strftime("%H:%M:%S"),
             "level": trials["level"].astype(str) + " → " + trials["next_level"].astype(str),
             "guidance": "G" + trials["guidance"].astype(str) + " → G" + trials["next_guidance"].astype(str),
             "performance": trials["perf_class"],
@@ -525,7 +564,7 @@ def live_view():
         else:
             shown = events[~events["type"].isin(NOISY_EVENTS)].tail(30).iloc[::-1]
             feed = pd.DataFrame({
-                "UTC": shown["ts"].dt.strftime("%H:%M:%S"),
+                "IST": shown["ts"].dt.strftime("%H:%M:%S"),
                 "session s": shown["session_s"].round(1),
                 "event": shown["type"].map(lambda t: EVENT_ICON.get(t, "•") + " " + t),
                 "trial": shown["trial"],
