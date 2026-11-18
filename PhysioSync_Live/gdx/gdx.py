@@ -576,6 +576,13 @@ class gdx:
                         for sensor in sensors: 
                             # The sensor.values call may read one sensor value, or multiple sensor values (if fast sampling)
                             values[:] = sensor.values
+                            # PATCH: a sensor channel (e.g. Respiration Rate, which only updates
+                            # every ~10 s) can have no new value in a packet. Return NaN for that
+                            # channel instead of crashing with "pop from empty list".
+                            if not values:
+                                retvalues.append(float('nan'))
+                                sensor.clear()
+                                continue
                             # Pull the first value off the values list
                             pop_values = values.pop(0)
                             # Build a list of each sensors' first value (this builds the return list)

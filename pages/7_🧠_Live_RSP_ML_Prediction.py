@@ -103,6 +103,7 @@ with c_freq:
 
 with c_win:
     win_map = {
+        "120s (2 Min — matches the VR baseline)": 120.0,
         "180s (3 Min — Official WESAD)": 180.0,
         "60s (1 Min — VR Trial Mode)": 60.0,
         "30s (Quick Live Test)": 30.0,
@@ -148,6 +149,16 @@ with c_stat:
 # ----------------------------------------------------
 # 3. LIVE ML PREDICTION OUTPUT PANEL (HERO SECTION)
 # ----------------------------------------------------
+_link = status["unity_link"]
+if not _link["enabled"]:
+    st.caption("🔌 Unity link: disabled")
+elif _link["status"] == "port_busy":
+    st.warning(f"🔌 Unity link: port {_link['address']} is busy ({_link['error']}). Retrying every 2 s...")
+elif _link["clients"] > 0:
+    st.caption(f"🔌 Unity link: **connected** ({_link['address']})")
+else:
+    st.caption(f"🔌 Unity link: listening on {_link['address']} — waiting for Unity to connect")
+
 st.divider()
 st.markdown("### 🤖 Live Random Forest Prediction Output (VR-Ready)")
 

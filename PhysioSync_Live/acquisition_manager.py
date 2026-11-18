@@ -205,7 +205,18 @@ class VernierAcquisitionManager:
                     elapsed = round(cur_time - self.start_time, 3)
                     self.final_elapsed_seconds = elapsed
 
-                    force_val = float(readings[0]) if readings[0] is not None else 0.0
+                    force_val = float(readings[0]) if readings[0] is not None else float("nan")
+                    # Belt connected but sending no force values -> don't log NaN rows; fail loudly.
+                    if force_val != force_val:
+                        self.sample_count -= 1
+                        if time.time() - self.start_time > 10.0 and self.latest_force == 0.0:
+                            self.error_message = (
+                                "Belt is connected but sending NO force data. Turn the GDX-RB off and on "
+                                "(LED flashing red), close other apps using it, then Start again."
+                            )
+                            break
+                        time.sleep(sleep_interval)
+                        continue
                     bpm_val = None
                     if len(readings) > 1 and readings[1] is not None:
                         try:
