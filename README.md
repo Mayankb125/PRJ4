@@ -100,3 +100,39 @@ Using a Random Forest classifier evaluated via strict Leave-One-Subject-Out (LOS
    - `norm_rsp_mean_amplitude` (Respiration Depth): 20.3% importance
    - `norm_paper_mean_ibi_ms` (PPG Mean IBI): 13.0% importance
 
+---
+
+## 5. Live Vernier GDX-RB Acquisition, 5-Feature RSP Model & Dashboard (`latest` branch)
+
+Pre-trained models are included in this repository so you can clone, install dependencies, and run immediately without downloading the 2.2 GB raw WESAD archive:
+
+* **Multimodal 10-Feature Models (`90.91%` binary LOSO):** `master_dataset/loso_results/`
+* **Respiration-Only 5-Feature Models (`81.06%` binary LOSO):** `RSP_Only_Model/results/`
+* **Live Vernier GDX-RB BLE Pipeline:** `PhysioSync_Live/` (includes sample 3-min baseline CSV at `PhysioSync_Live/data/respiration_20261117_233731_20Hz.csv`)
+
+### Quick Clone & Run (Windows / Mac / Linux)
+```bash
+git clone -b latest https://github.com/Mayankb125/PRJ4.git
+cd PRJ4
+python -m venv venv
+venv\Scripts\activate            # On Mac/Linux: source venv/bin/activate
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
+
+> **Note for Python 3.15 on Windows:** If `hidapi` fails to compile during `pip install -r requirements.txt`, install BLE support directly:
+> ```bash
+> pip install numpy pandas scipy scikit-learn joblib streamlit plotly matplotlib bleak
+> pip install --no-deps godirect
+> ```
+
+### Dashboard Pages Included
+1. **Signal Processing Pipelines** (PPG, GSR, RSP audits)
+2. **Master Dataset & Labels** (15 subjects, 476 windows)
+3. **Machine Learning LOSO Benchmark** (10-feature multimodal results)
+4. **Continuous Monitoring & Unlabeled Inference**
+5. **Interactive Inference Sandbox**
+6. **Vernier Live Data Collection** (Real-time 10/20/50 Hz BLE graphing + strict 3-minute feature extraction)
+7. **Live RSP ML Prediction** (Live Vernier belt $\rightarrow$ 5 features $\rightarrow$ Baseline subtraction $\rightarrow$ 81.06% Random Forest + VR-ready JSON)
+
+

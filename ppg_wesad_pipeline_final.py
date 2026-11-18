@@ -116,7 +116,6 @@ def detect_peaks(filtered: np.ndarray) -> np.ndarray:
     )
     return peaks
 
-
 def clean_ibi_intervals(peaks: np.ndarray, filtered: np.ndarray, output_dir: Path) -> pd.DataFrame:
     ibi_ms = np.diff(peaks) / FS_BVP * 1000.0
     rows = []

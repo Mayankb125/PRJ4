@@ -1,0 +1,106 @@
+[
+  {
+    "experiment": "rsp_only_four_class_raw",
+    "n_features": 5,
+    "features": [
+      "rsp_mean_amplitude",
+      "rsp_std_amplitude",
+      "rsp_spectral_entropy",
+      "rsp_mean_peak_valley_magnitude",
+      "rsp_std_peak_valley_magnitude"
+    ],
+    "classes": [
+      "Baseline",
+      "Stress",
+      "Amusement",
+      "Meditation"
+    ],
+    "subjects": 15,
+    "windows": 194,
+    "loso_accuracy": 0.5360824742268041,
+    "loso_balanced_accuracy": 0.49542987171351427,
+    "loso_macro_f1": 0.4821196591337787,
+    "loso_weighted_f1": 0.5403869144065053,
+    "mean_subject_accuracy": 0.5353479853479854,
+    "std_subject_accuracy": 0.1860210630519279,
+    "mean_subject_macro_f1": 0.4628109853109853,
+    "std_subject_macro_f1": 0.17535258628270878
+  },
+  {
+    "experiment": "rsp_only_four_class_normalized",
+    "n_features": 5,
+    "features": [
+      "norm_rsp_mean_amplitude",
+      "norm_rsp_std_amplitude",
+      "norm_rsp_spectral_entropy",
+      "norm_rsp_mean_peak_valley_magnitude",
+      "norm_rsp_std_peak_valley_magnitude"
+    ],
+    "classes": [
+      "Baseline",
+      "Stress",
+      "Amusement",
+      "Meditation"
+    ],
+    "subjects": 15,
+    "windows": 194,
+    "loso_accuracy": 0.6185567010309279,
+    "loso_balanced_accuracy": 0.551523324250003,
+    "loso_macro_f1": 0.5492948927502703,
+    "loso_weighted_f1": 0.6238132689929147,
+    "mean_subject_accuracy": 0.6195970695970695,
+    "std_subject_accuracy": 0.18647967890883507,
+    "mean_subject_macro_f1": 0.5103523328523328,
+    "std_subject_macro_f1": 0.2173658122439519
+  },
+  {
+    "experiment": "rsp_only_baseline_vs_stress_raw",
+    "n_features": 5,
+    "features": [
+      "rsp_mean_amplitude",
+      "rsp_std_amplitude",
+      "rsp_spectral_entropy",
+      "rsp_mean_peak_valley_magnitude",
+      "rsp_std_peak_valley_magnitude"
+    ],
+    "classes": [
+      "Baseline",
+      "Stress"
+    ],
+    "subjects": 15,
+    "windows": 132,
+    "loso_accuracy": 0.7651515151515151,
+    "loso_balanced_accuracy": 0.7657434021426706,
+    "loso_macro_f1": 0.7473918143095253,
+    "loso_weighted_f1": 0.7707331354161405,
+    "mean_subject_accuracy": 0.7620370370370371,
+    "std_subject_accuracy": 0.2341107294151169,
+    "mean_subject_macro_f1": 0.7184726384726384,
+    "std_subject_macro_f1": 0.26478290394548315
+  },
+  {
+    "experiment": "rsp_only_baseline_vs_stress_normalized",
+    "n_features": 5,
+    "features": [
+      "norm_rsp_mean_amplitude",
+      "norm_rsp_std_amplitude",
+      "norm_rsp_spectral_entropy",
+      "norm_rsp_mean_peak_valley_magnitude",
+      "norm_rsp_std_peak_valley_magnitude"
+    ],
+    "classes": [
+      "Baseline",
+      "Stress"
+    ],
+    "subjects": 15,
+    "windows": 132,
+    "loso_accuracy": 0.8106060606060606,
+    "loso_balanced_accuracy": 0.7934413378625556,
+    "loso_macro_f1": 0.7881219903691814,
+    "loso_weighted_f1": 0.8121747166690987,
+    "mean_subject_accuracy": 0.8129629629629629,
+    "std_subject_accuracy": 0.11511470904062324,
+    "mean_subject_macro_f1": 0.7723269323269325,
+    "std_subject_macro_f1": 0.15536416810660394
+  }
+]

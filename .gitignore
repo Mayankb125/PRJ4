@@ -34,6 +34,12 @@ htmlcov/
 # Temporary & Scratch Files
 plan_text.txt
 *.log
+Not/
+
+# Local Live Test Sessions (keep 1 clean 3-min demo sample CSV for teammates)
+RSP_Only_Model/live_sessions/
+PhysioSync_Live/data/*.csv
+!PhysioSync_Live/data/respiration_20261117_233731_20Hz.csv
 
 # IDE & Editor Settings
 .vscode/
